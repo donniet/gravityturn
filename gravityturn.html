@@ -1,0 +1,205 @@
+<html>
+<head>
+
+<script type="text/javascript">
+
+function GravityTurn(g, force, mass, vel, beta) {
+	var veps = 0.0001;
+	return { 
+		dvel: force/mass - g * Math.cos(beta),
+		dbeta: vel < veps ? 0 : -g * Math.sin(beta) / vel
+	}
+}
+
+function ArrayFind(arr, x, pred) {
+	if(typeof pred != 'function') {
+		pred = function(a,b) { return a < b; };
+	}
+
+	var start = 0, end = arr.length - 1;
+	while(start + 1 < end) {
+		//console.log('start', start, 'end', end);
+		var mid = Math.floor((start + end) / 2);
+
+		if(pred(x, arr[mid])) {
+			end = mid;
+		} else {
+			start = mid;
+		}
+	}
+
+	return arr[start];
+}
+
+function padLeft(str, pad, len) {
+	// TODO: handle null and undefined...
+	if(typeof str != 'string') {
+		str = str.toString();
+	}
+
+	if(str.length > len) {
+		return str.substring(0, len);
+	}
+
+	var arr = [];
+	for(var i = str.length; i < len; i++) {
+		arr.push(pad);
+	}
+	arr.push(str);
+
+	return arr.join('');
+}
+
+function floatToString(f, decimalPoints) {
+	var mult = Math.pow(10,decimalPoints);
+
+	var s = Math.floor(mult * f).toString();
+
+	// add a period decimalPoints in from the right
+	return [
+		s.substring(0,s.length - 2),
+		s.substring(s.length - 2, s.length)
+	].join('.');
+
+}
+
+function Integrator() {
+	var canvas = document.getElementById('canvas');
+	var ctx = canvas.getContext('2d');
+
+	var xscale = 0.0025;
+	var yscale = 0.0025;
+	var vscale = xscale * 20;
+	var iterations = 5000;
+	var timeMarkers = 5;
+
+	// constants
+	var teps = 0.1;
+
+	// initial angle versus gravity
+	var beta0 = Math.PI * 179.92 / 180;
+	var vel0 = 0;
+	var twr = 1.2;
+
+	var vel = vel0;
+	var beta = beta0;
+	var dbeta = 0;
+	var t = 0;
+	var x = 0;
+	var y = 0;
+
+	var res = [];
+
+	var lastMarker = 0;
+
+	for(var i = 0; i < iterations; i++) {
+		ctx.beginPath();
+		ctx.moveTo(x * xscale, canvas.height - y * yscale);
+
+		if(y < 0) { ctx.stroke(); break };
+
+		res.push({
+			x: x,
+			y: y,
+			beta: beta,
+			v: vel,
+			t: t
+		});
+		//console.log(res[res.length - 1]);
+
+		var r = GravityTurn(9.8, 1.2, 1, vel, beta);
+
+		vel += teps * r.dvel;
+		beta += teps * r.dbeta;
+		x += teps * vel * Math.cos(Math.PI/2 - beta);
+		y -= teps * vel * Math.sin(Math.PI/2 - beta);
+
+		ctx.lineTo(x * xscale, canvas.height - y * yscale);
+		ctx.stroke();
+
+		if(t - lastMarker > timeMarkers) {
+			ctx.beginPath();
+			ctx.arc(x * xscale, canvas.height - y * yscale, 2, 0, 2*Math.PI);
+			ctx.fill();
+			lastMarker = t;
+		}
+
+		t += teps;
+
+		//console.log('x: ', x, 'y:', y, 'beta:', 180 * beta / Math.PI, 'v:', vel, 't:', t);
+	}	
+
+	// should be sorted, but just in case...
+	res.sort(function(a,b) { return a.x < b.x; });
+
+	var check = document.getElementById('check');
+	var overlay = document.getElementById('overlay');
+	var overlay_ctx = overlay.getContext('2d');
+
+	overlay.addEventListener('mousemove', function(e) {
+
+		var xr = Math.floor(e.clientX / xscale);
+		//console.log('move: ', x);
+
+		if(check.firstChild) check.removeChild(check.firstChild);
+
+		var r = ArrayFind(res, xr, function(x, r) {
+			return x < r.x;
+		});
+
+		var x = e.clientX;
+		var y = r.y * yscale;
+
+		check.appendChild(document.createTextNode([
+			'x:    ', padLeft(floatToString(r.x, 2), ' ', 15), '\n',
+			'y:    ', padLeft(floatToString(r.y, 2), ' ', 15), '\n',
+			'beta: ', padLeft(floatToString(180 * r.beta / Math.PI, 2),' ', 15), '\n',
+			'v:    ', padLeft(floatToString(r.v, 2),' ', 15), '\n',
+			't:    ', padLeft(floatToString(r.t, 2),' ', 15), '\n',
+		].join('')));
+
+		overlay_ctx.strokeStyle = 'blue';
+		overlay_ctx.fillStyle = 'blue';
+		overlay_ctx.clearRect(0,0,960,480);
+		overlay_ctx.beginPath();
+		overlay_ctx.moveTo(x, 0);
+		overlay_ctx.lineTo(x, 480);
+		overlay_ctx.stroke();
+
+		overlay_ctx.beginPath();
+		overlay_ctx.arc(x, canvas.height - y, 4, 0, 2*Math.PI);
+		overlay_ctx.stroke();
+
+
+
+		overlay_ctx.beginPath();
+		overlay_ctx.moveTo(x, canvas.height - y);
+		overlay_ctx.lineTo(
+			x + vscale * r.v * Math.cos(Math.PI/2 - r.beta),
+			canvas.height - (y - vscale * r.v * Math.sin(Math.PI/2 - r.beta))
+		);
+		overlay_ctx.stroke();
+
+		overlay_ctx.beginPath();
+		overlay_ctx.arc(x, canvas.height - y, vscale*r.v, -Math.PI/2, Math.PI/2 - r.beta);
+		overlay_ctx.stroke();
+
+		overlay_ctx.fillText(Math.round(18000 * r.beta / Math.PI)/100, x + 10, canvas.height - y - 10);
+
+	});
+
+
+}
+
+</script>
+
+</head>
+<body onload="Integrator()">
+
+	<canvas id="canvas" width="960" height="480" style="position:absolute;top:0;left:0;"></canvas>
+	<canvas id="overlay" width="960" height="480" style="position:absolute;top:0;left:0;"></canvas>
+	<pre id="check"style="position:absolute;top:480;left:10;"></pre>
+
+</body>
+
+</html>
