@@ -67,7 +67,7 @@ function Integrator() {
 	var canvas = document.getElementById('canvas');
 	var ctx = canvas.getContext('2d');
 
-	var xscale = 0.0025;
+	var xscale = 100;
 	var yscale = 0.0025;
 	var vscale = xscale * 20;
 	var iterations = 5000;
@@ -85,8 +85,8 @@ function Integrator() {
 	var beta = beta0;
 	var dbeta = 0;
 	var t = 0;
-	var x = 0;
-	var y = 0;
+	var theta = 0;
+	var r = 100000;
 
 	var res = [];
 
@@ -94,32 +94,35 @@ function Integrator() {
 
 	for(var i = 0; i < iterations; i++) {
 		ctx.beginPath();
-		ctx.moveTo(x * xscale, canvas.height - y * yscale);
+		ctx.moveTo(theta * xscale, canvas.height - (r - 100000) * yscale);
 
-		if(y < 0) { ctx.stroke(); break };
+		if(r < 0) { ctx.stroke(); break };
 
 		res.push({
-			x: x,
-			y: y,
+			theta: theta,
+			r: r - 100000,
 			beta: beta,
 			v: vel,
 			t: t
 		});
 		//console.log(res[res.length - 1]);
 
-		var r = GravityTurn(9.8, 1.2, 1, vel, beta);
+		var turn = GravityTurn(9.8, 1.2, 1, vel, beta);
 
-		vel += teps * r.dvel;
-		beta += teps * r.dbeta;
-		x += teps * vel * Math.cos(Math.PI/2 - beta);
-		y -= teps * vel * Math.sin(Math.PI/2 - beta);
+		vel += teps * turn.dvel;
+		beta += teps * turn.dbeta;
+		theta += teps * vel * Math.cos(Math.PI/2 - beta) / r;
+		r -= teps * vel * Math.sin(Math.PI/2 - beta);
 
-		ctx.lineTo(x * xscale, canvas.height - y * yscale);
+		//console.log(t);
+		//console.log(res[res.length-1]);
+
+		ctx.lineTo(theta * xscale, canvas.height - (r - 100000) * yscale);
 		ctx.stroke();
 
 		if(t - lastMarker > timeMarkers) {
 			ctx.beginPath();
-			ctx.arc(x * xscale, canvas.height - y * yscale, 2, 0, 2*Math.PI);
+			ctx.arc(theta * xscale, canvas.height - (r - 100000) * yscale, 2, 0, 2*Math.PI);
 			ctx.fill();
 			lastMarker = t;
 		}
@@ -130,7 +133,7 @@ function Integrator() {
 	}	
 
 	// should be sorted, but just in case...
-	res.sort(function(a,b) { return a.x < b.x; });
+	res.sort(function(a,b) { return a.theta < b.theta; });
 
 	var check = document.getElementById('check');
 	var overlay = document.getElementById('overlay');
@@ -138,21 +141,21 @@ function Integrator() {
 
 	overlay.addEventListener('mousemove', function(e) {
 
-		var xr = Math.floor(e.clientX / xscale);
+		var xr = e.clientX / xscale;
 		//console.log('move: ', x);
 
 		if(check.firstChild) check.removeChild(check.firstChild);
 
-		var r = ArrayFind(res, xr, function(x, r) {
-			return x < r.x;
+		var r = ArrayFind(res, xr, function(theta, a) {
+			return theta < a.theta;
 		});
 
 		var x = e.clientX;
-		var y = r.y * yscale;
+		var y = r.r * yscale;
 
 		check.appendChild(document.createTextNode([
-			'x:    ', padLeft(floatToString(r.x, 2), ' ', 15), '\n',
-			'y:    ', padLeft(floatToString(r.y, 2), ' ', 15), '\n',
+			'theta:    ', padLeft(floatToString(r.theta, 2), ' ', 15), '\n',
+			'r:    ', padLeft(floatToString(r.r, 2), ' ', 15), '\n',
 			'beta: ', padLeft(floatToString(180 * r.beta / Math.PI, 2),' ', 15), '\n',
 			'v:    ', padLeft(floatToString(r.v, 2),' ', 15), '\n',
 			't:    ', padLeft(floatToString(r.t, 2),' ', 15), '\n',
