@@ -67,7 +67,7 @@ function Integrator() {
 	var canvas = document.getElementById('canvas');
 	var ctx = canvas.getContext('2d');
 
-	var xscale = 100;
+	var xscale = 1000;
 	var yscale = 0.0025;
 	var vscale = xscale * 20;
 	var iterations = 5000;
@@ -77,7 +77,7 @@ function Integrator() {
 	var teps = 0.1;
 
 	// initial angle versus gravity
-	var beta0 = Math.PI * 179.92 / 180;
+	var beta0 = Math.PI * 179.885 / 180;
 	var vel0 = 0;
 	var twr = 1.2;
 
@@ -86,43 +86,53 @@ function Integrator() {
 	var dbeta = 0;
 	var t = 0;
 	var theta = 0;
-	var r = 100000;
+	var prad = 600000;
+	var r = prad;
 
 	var res = [];
 
 	var lastMarker = 0;
+	//var Gm = parseFloat("3.528e+12");
+	var Gm = 3.528e+12;
 
 	for(var i = 0; i < iterations; i++) {
 		ctx.beginPath();
-		ctx.moveTo(theta * xscale, canvas.height - (r - 100000) * yscale);
+		ctx.moveTo(theta * xscale, canvas.height - (r - prad) * yscale);
 
 		if(r < 0) { ctx.stroke(); break };
 
 		res.push({
 			theta: theta,
-			r: r - 100000,
+			r: r - prad,
 			beta: beta,
 			v: vel,
 			t: t
 		});
 		//console.log(res[res.length - 1]);
+		//g = Gm/r^2
+		//Gm/600000^2 = 9.8
+		//Gm = 3.528e+12
 
-		var turn = GravityTurn(9.8, 1.2, 1, vel, beta);
+		var turn = GravityTurn(3.528e+12 / (r*r), 1.2, 1, vel, beta);
 
 		vel += teps * turn.dvel;
 		beta += teps * turn.dbeta;
-		theta += teps * vel * Math.cos(Math.PI/2 - beta) / r;
+		var dtheta = teps * vel * Math.cos(Math.PI/2 - beta) / r;
+		theta += dtheta;
+		// account for rotation around the center of mass
+		beta += dtheta;
 		r -= teps * vel * Math.sin(Math.PI/2 - beta);
+
 
 		//console.log(t);
 		//console.log(res[res.length-1]);
 
-		ctx.lineTo(theta * xscale, canvas.height - (r - 100000) * yscale);
+		ctx.lineTo(theta * xscale, canvas.height - (r - prad) * yscale);
 		ctx.stroke();
 
 		if(t - lastMarker > timeMarkers) {
 			ctx.beginPath();
-			ctx.arc(theta * xscale, canvas.height - (r - 100000) * yscale, 2, 0, 2*Math.PI);
+			ctx.arc(theta * xscale, canvas.height - (r - prad) * yscale, 2, 0, 2*Math.PI);
 			ctx.fill();
 			lastMarker = t;
 		}
@@ -184,7 +194,7 @@ function Integrator() {
 		overlay_ctx.stroke();
 
 		overlay_ctx.beginPath();
-		overlay_ctx.arc(x, canvas.height - y, vscale*r.v, -Math.PI/2, Math.PI/2 - r.beta);
+		overlay_ctx.arc(x, canvas.height - y, Math.max(0,vscale*r.v), -Math.PI/2, Math.PI/2 - r.beta);
 		overlay_ctx.stroke();
 
 		overlay_ctx.fillText(Math.round(18000 * r.beta / Math.PI)/100, x + 10, canvas.height - y - 10);
